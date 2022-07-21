@@ -171,6 +171,7 @@ class VOCriterion:
             self.calc_rot_crit = self.calc_none
 
         if flow_crit == 'mse':
+            self.flow_loss = torch.nn.MSELoss()
             self.calc_flow_crit = self.calc_optical_flow_mse
         else:
             self.calc_flow_crit = self.calc_none
@@ -199,7 +200,7 @@ class VOCriterion:
         return 0
 
     def calc_optical_flow_mse(self, flow, flow_clean):
-        flow_loss = torch.nn.MSELoss(flow, flow_clean)
+        flow_loss = self.flow_loss(flow, flow_clean)
         return flow_loss
 
     def calc_partial_poses_t(self, motions, motions_gt, target_pose):

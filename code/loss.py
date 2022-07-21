@@ -275,6 +275,11 @@ class VOCriterion:
             t_target_error = (cumul_delta_t.unsqueeze(1).bmm(target_gt_t_hat)).view(-1)
         return t_error, t_target_error
 
+    def rotation_quat_product(self, rot_quat, rot_quat_gt):
+        scalar_product = rot_quat.unsqueeze(1).bmm(rot_quat_gt.unsqueeze(2)).view(-1)
+        r_errors = 1 - scalar_product
+        return r_errors
+
     def rtvec_to_pose(self, rtvec):
         return rtvec_to_pose(rtvec)
 

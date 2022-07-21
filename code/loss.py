@@ -165,9 +165,15 @@ class VOCriterion:
         else:
             self.calc_t_crit = self.calc_cumul_poses_t
 
-        self.calc_rot_crit = self.calc_none
+        if rot_crit == 'quat':
+            self.calc_rot_crit = self.calc_rot_quat_product
+        else:
+            self.calc_rot_crit = self.calc_none
 
-        self.calc_flow_crit = self.calc_none
+        if flow_crit == 'mse':
+            self.calc_flow_crit = self.calc_optical_flow_mse
+        else:
+            self.calc_flow_crit = self.calc_none
 
         self.calc_target_t_product = True
 
@@ -191,6 +197,10 @@ class VOCriterion:
 
     def calc_none(self, est, preprocessed_gt):
         return 0
+
+    def calc_optical_flow_mse(self, flow, flow_clean):
+        flow_loss = torch.nn.MSELoss(flow, flow_clean)
+        return flow_loss
 
     def calc_partial_poses_t(self, motions, motions_gt, target_pose):
         rel_poses = self.rtvec_to_pose(motions)

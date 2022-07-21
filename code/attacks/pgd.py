@@ -174,7 +174,10 @@ class PGD(Attack):
                 print(" attack optimization epoch: " + str(k))
                 iter_start_time = time.time()
 
-                pert = self.gradient_ascent_step(pert, data_shape, data_loader, y_list, clean_flow_list,
+                # pert = self.gradient_ascent_step(pert, data_shape, data_loader, y_list, clean_flow_list,
+                #                         multiplier, a_abs, eps, device=device)
+
+                pert = self.gradient_ascent_step_momentum(pert, data_shape, data_loader, y_list, clean_flow_list,
                                         multiplier, a_abs, eps, device=device)
 
                 step_runtime = time.time() - iter_start_time

@@ -1,3 +1,6 @@
+import os.path
+from pathlib import Path
+
 import numpy as np
 import torch
 from attacks.attack import Attack
@@ -136,11 +139,15 @@ class PGD(Attack):
         torch.cuda.empty_cache()
         return grad.to(device)
 
-    def perturb(self, data_loader, y_list, eps,
+    def perturb(self, data_loader, y_list, eps, mu,
                                    targeted=False, device=None, eval_data_loader=None, eval_y_list=None):
 
         a_abs = np.abs(eps / self.n_iter) if self.alpha is None else np.abs(self.alpha)
         multiplier = -1 if targeted else 1
+        # fle = Path('night_train.txt')
+        # fle.touch(exist_ok=True)
+        # with open('night_train.txt', 'a') as f:
+        #     f.write('_'*15)
         print("computing PGD attack with parameters:")
         print("attack random restarts: " + str(self.n_restarts))
         print("attack epochs: " + str(self.n_iter))
@@ -178,7 +185,7 @@ class PGD(Attack):
                 #                         multiplier, a_abs, eps, device=device)
 
                 pert = self.gradient_ascent_step_momentum(pert, data_shape, data_loader, y_list, clean_flow_list,
-                                        multiplier, a_abs, eps, device=device)
+                                        multiplier, a_abs, eps, mu, device=device)
 
                 step_runtime = time.time() - iter_start_time
                 print(" optimization epoch finished, epoch runtime: " + str(step_runtime))
@@ -213,6 +220,20 @@ class PGD(Attack):
                     print(" " + str(best_loss_sum))
                     print(" trajectories clean loss sum:")
                     print(" " + str(clean_loss_sum))
+                    # with open('night_train.txt', 'a') as f:
+                    #     f.write(" evaluation finished, evaluation runtime: " + str(eval_runtime))
+                    #     f.write(" current trajectories loss mean list:")
+                    #     f.write(" " + str(traj_loss_mean_list))
+                    #     f.write(" current trajectories best loss mean list:")
+                    #     f.write(" " + str(traj_best_loss_mean_list))
+                    #     f.write(" trajectories clean loss mean list:")
+                    #     f.write(" " + str(traj_clean_loss_mean_list))
+                    #     f.write(" current trajectories loss sum:")
+                    #     f.write(" " + str(eval_loss_tot))
+                    #     f.write(" current trajectories best loss sum:")
+                    #     f.write(" " + str(best_loss_sum))
+                    #     f.write(" trajectories clean loss sum:")
+                    #     f.write(" " + str(clean_loss_sum))
                     del eval_loss_tot
                     del eval_loss_list
                     torch.cuda.empty_cache()

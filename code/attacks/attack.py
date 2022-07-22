@@ -20,7 +20,7 @@ class Attack:
         self.data_size = (data_shape[1], data_shape[2])
 
         # added for momentum
-        self.mu = 1
+        # self.mu = 1
         self.grad_k = None
 
         self.sample_window_size = sample_window_size
@@ -443,7 +443,7 @@ class Attack:
 
     # gradient ascent with momentum
     def gradient_ascent_step_momentum(self, pert, data_shape, data_loader, y_list, clean_flow_list,
-                             multiplier, a_abs, eps, device=None):
+                             multiplier, a_abs, eps, mu, device=None):
 
         pert_expand = pert.expand(data_shape[0], -1, -1, -1).to(device)
         grad_tot = torch.zeros_like(pert, requires_grad=False)
@@ -488,7 +488,7 @@ class Attack:
             self.p = 1
             if self.grad_k is None:
                 self.grad_k = torch.zeros_like(pert, requires_grad=False)
-            grad = self.mu * self.grad_k + self.normalize_grad(grad_tot)
+            grad = mu * self.grad_k + self.normalize_grad(grad_tot)
             self.grad_k = grad
             # set p to the original value
             self.p = float(self.norm[1:])
@@ -497,6 +497,6 @@ class Attack:
 
         return pert
 
-    def perturb(self, data_loader, y_list, eps,
+    def perturb(self, data_loader, y_list, eps, mu,
                                    targeted=False, device=None, eval_data_loader=None, eval_y_list=None):
         raise NotImplementedError('perturb method not defined!')

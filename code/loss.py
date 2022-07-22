@@ -122,6 +122,18 @@ def rtvec_to_pose(rtvec):
     return pose
 
 
+class MSELoss(torch.nn.Module):
+    def __init__(self):
+        super(MSELoss, self).__init__()
+        print("using mean MSE from the clean flow for regularization of flow in attacks")
+        self.MSELoss = torch.nn.MSELoss(reduction='mean')
+
+    def forward(self, x, y):
+        x = x.flatten(start_dim=1)
+        y = y.flatten(start_dim=1)
+        diff = self.MSELoss(x, y)
+        return diff
+
 class CalcCriterion:
     def __init__(self, criterion_class):
         self.criterion = criterion_class()
@@ -171,8 +183,7 @@ class VOCriterion:
             self.calc_rot_crit = self.calc_none
 
         if flow_crit == 'mse':
-            self.flow_loss = torch.nn.MSELoss()
-            self.calc_flow_crit = self.calc_optical_flow_mse
+            self.calc_flow_crit = CalcCriterion(MSELoss)
         else:
             self.calc_flow_crit = self.calc_none
 
@@ -199,9 +210,9 @@ class VOCriterion:
     def calc_none(self, est, preprocessed_gt):
         return 0
 
-    def calc_optical_flow_mse(self, flow, flow_clean):
-        flow_loss = self.flow_loss(flow, flow_clean)
-        return flow_loss
+    # def calc_optical_flow_mse(self, flow, flow_clean):
+    #     flow_loss = self.flow_loss(flow, flow_clean)
+    #     return flow_loss
 
     def calc_partial_poses_t(self, motions, motions_gt, target_pose):
         rel_poses = self.rtvec_to_pose(motions)

@@ -139,7 +139,7 @@ class PGD(Attack):
         torch.cuda.empty_cache()
         return grad.to(device)
 
-    def perturb(self, data_loader, y_list, eps, mu,
+    def perturb(self, data_loader, y_list, eps, mu, gamma,
                                    targeted=False, device=None, eval_data_loader=None, eval_y_list=None):
 
         a_abs = np.abs(eps / self.n_iter) if self.alpha is None else np.abs(self.alpha)
@@ -184,8 +184,11 @@ class PGD(Attack):
                 # pert = self.gradient_ascent_step(pert, data_shape, data_loader, y_list, clean_flow_list,
                 #                         multiplier, a_abs, eps, device=device)
 
-                pert = self.gradient_ascent_step_momentum(pert, data_shape, data_loader, y_list, clean_flow_list,
-                                        multiplier, a_abs, eps, mu, device=device)
+                # pert = self.gradient_ascent_step_momentum(pert, data_shape, data_loader, y_list, clean_flow_list,
+                #                         multiplier, a_abs, eps, mu, device=device)
+
+                pert = self.gradient_ascent_step_SINI(pert, data_shape, data_loader, y_list, clean_flow_list,
+                                                   multiplier, a_abs, eps, mu, gamma, device=device)
 
                 step_runtime = time.time() - iter_start_time
                 print(" optimization epoch finished, epoch runtime: " + str(step_runtime))

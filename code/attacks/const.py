@@ -33,7 +33,7 @@ class Const(Attack):
             else:
                 self.pert = pert_transform({'img': self.pert})['img']
 
-    def perturb(self, data_loader, y_list, eps,
+    def perturb(self, data_loader, y_list, eps, mu, gamma,
                                    targeted=False, device=None, eval_data_loader=None, eval_y_list=None):
 
         print("computing output on given pertubation, normalized according to parameters:")

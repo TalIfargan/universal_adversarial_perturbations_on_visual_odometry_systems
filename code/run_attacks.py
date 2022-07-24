@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 from random import sample
 import gc
 import csv
-
+from sklearn.model_selection import KFold
 
 def save_flow_imgs(flow, flowdir, visflow, dataset_name, traj_name, save_dir_suffix='_clean'):
     flow_save_dir = flowdir + '/' + dataset_name
@@ -268,7 +268,7 @@ def test_model(model, criterions, img1, img2, intrinsic, scale_gt, motions_targe
     return (motions, flow), crit_results
 
 
-def test_clean_multi_inputs(args):
+def test_clean_multi_inputs(args, dataloader):
     dataset_idx_list = []
     dataset_name_list = []
     traj_name_list = []
@@ -281,9 +281,9 @@ def test_clean_multi_inputs(args):
     traj_clean_criterions_list = [[] for crit in args.criterions]
     frames_clean_criterions_list = [[[] for i in range(args.traj_len)] for crit in args.criterions]
 
-    print("len(args.testDataloader)")
-    print(len(args.testDataloader))
-    for traj_idx, traj_data in enumerate(args.testDataloader):
+    print("len(dataloader)")
+    print(len(dataloader))
+    for traj_idx, traj_data in enumerate(dataloader):
         dataset_idx, dataset_name, traj_name, traj_len, \
         img1_I0, img2_I0, intrinsic_I0, \
         img1_I1, img2_I1, intrinsic_I1, \
@@ -622,59 +622,107 @@ def run_attacks_train(args):
     print("args.attack")
     print(args.attack)
     attack = args.attack_obj
+    if args.kfold > 0:
+        kfold = KFold(n_splits=args.kfold, shuffle=True)
+        sum_of_best_losses = 0
+        for fold, (train_idx, test_idx) in enumerate(kfold.split(args.testDataset)):
+            print('------------fold no---------{}----------------------'.format(fold))
+            train_subsampler = torch.utils.data.SubsetRandomSampler(train_idx)
+            test_subsampler = torch.utils.data.SubsetRandomSampler(test_idx)
 
-    dataset_idx_list, dataset_name_list, traj_name_list, traj_indices, \
-    motions_gt_list, traj_clean_criterions_list, traj_clean_motions = \
-        test_clean_multi_inputs(args)
+            trainloader = torch.utils.data.DataLoader(
+                args.testDataset,
+                batch_size=args.batch_size, sampler=train_subsampler)
+            testloader = torch.utils.data.DataLoader(
+                args.testDataset,
+                batch_size=args.batch_size, sampler=test_subsampler)
 
-    print("traj_name_list")
-    print(traj_name_list)
+            train_dataset_idx_list, train_dataset_name_list, train_traj_name_list, train_traj_indices, \
+            train_motions_gt_list, train_traj_clean_criterions_list, train_traj_clean_motions = \
+                test_clean_multi_inputs(args, trainloader)
 
-    motions_target_list = motions_gt_list
-    traj_clean_rms_list, traj_clean_mean_partial_rms_list, \
-    traj_clean_target_rms_list, traj_clean_target_mean_partial_rms_list = tuple(traj_clean_criterions_list)
+            eval_dataset_idx_list, eval_dataset_name_list, eval_traj_name_list, eval_traj_indices, \
+            eval_motions_gt_list, eval_traj_clean_criterions_list, eval_traj_clean_motions = \
+                test_clean_multi_inputs(args, testloader)
+
+            print("traj_name_list")
+            print(eval_traj_name_list)
+
+            train_motions_target_list = train_motions_gt_list
+            eval_motions_target_list = eval_motions_gt_list
+
+            best_pert, clean_loss_list, all_loss_list, all_best_loss_list, best_loss_sum = \
+                attack.perturb(train_data_loader=trainloader, eval_data_loader=testloader, y_list=train_motions_target_list, eval_y_list=eval_motions_target_list, eps=args.eps, mu=args.mu, gamma=args.gamma,
+                               device=args.device)
+            sum_of_best_losses += best_loss_sum
+
+            if args.save_best_pert:
+                print('image not saved because in kfold mode')
+
+        mean_best_loss = sum_of_best_losses/args.kfold
+        print(mean_best_loss)
+        fle = Path('kfold parameters evaluation.txt')
+        fle.touch(exist_ok=True)
+        with open('kfold parameters evaluation.txt', 'a') as f:
+            f.write(f'parameters: mu={args.mu}, alpha={args.alpha}, gamma={args.gamma}, eps={args.eps}\nmean_best_loss={mean_best_loss}\n')
+
+    else:
+        train_dataset_idx_list, train_dataset_name_list, train_traj_name_list, train_traj_indices, \
+        train_motions_gt_list, train_traj_clean_criterions_list, train_traj_clean_motions = \
+            test_clean_multi_inputs(args, args.trainDataloader)
+
+        test_dataset_idx_list, test_dataset_name_list, test_traj_name_list, test_traj_indices, \
+        test_motions_gt_list, test_traj_clean_criterions_list, test_traj_clean_motions = \
+            test_clean_multi_inputs(args, args.testDataloader)
+
+        train_motions_target_list = train_motions_gt_list
+        test_motions_target_list = test_motions_gt_list
+        traj_clean_rms_list, traj_clean_mean_partial_rms_list, \
+        traj_clean_target_rms_list, traj_clean_target_mean_partial_rms_list = tuple(test_traj_clean_criterions_list)
 
 
-    best_pert, clean_loss_list, all_loss_list, all_best_loss_list = \
-        attack.perturb(args.testDataloader, motions_target_list, eps=args.eps, mu=args.mu, gamma=args.gamma, device=args.device)
+        best_pert, clean_loss_list, all_loss_list, all_best_loss_list, best_loss_sum = \
+            attack.perturb(train_data_loader=args.trainDataloader, eval_data_loader=args.testDataloader, y_list=train_motions_target_list,
+                           eval_y_list=test_motions_target_list, eps=args.eps, mu=args.mu, gamma=args.gamma,
+                           device=args.device)
 
-    print("clean_loss_list")
-    print(clean_loss_list)
-    # print("all_loss_list")
-    # print(all_loss_list)
-    # print("all_best_loss_list")
-    # print(all_best_loss_list)
-    best_loss_list = all_best_loss_list[- 1]
-    print("best_loss_list")
-    print(best_loss_list)
+        print("clean_loss_list")
+        print(clean_loss_list)
+        # print("all_loss_list")
+        # print(all_loss_list)
+        # print("all_best_loss_list")
+        # print(all_best_loss_list)
+        best_loss_list = all_best_loss_list[- 1]
+        print("best_loss_list")
+        print(best_loss_list)
 
-    if args.save_best_pert:
-        save_image(best_pert[0], args.adv_best_pert_dir + '/' + 'adv_best_pert.png')
+        if args.save_best_pert:
+            save_image(best_pert[0], args.adv_best_pert_dir + '/' + 'adv_best_pert.png')
 
-    traj_adv_criterions_list = \
-        test_adv_trajectories(args.testDataloader, args.model, motions_target_list, attack, best_pert,
-                              args.criterions, args.window_size,
-                              args.save_imgs, args.save_flow, args.save_pose,
-                              args.adv_img_dir, args.adv_pert_dir, args.flowdir, args.pose_dir,
-                              device=args.device)
-    traj_adv_rms_list, traj_adv_mean_partial_rms_list, \
-    traj_adv_target_rms_list, traj_adv_target_mean_partial_rms_list = tuple(traj_adv_criterions_list)
+        traj_adv_criterions_list = \
+            test_adv_trajectories(args.testDataloader, args.model, test_motions_target_list, attack, best_pert,
+                                  args.criterions, args.window_size,
+                                  args.save_imgs, args.save_flow, args.save_pose,
+                                  args.adv_img_dir, args.adv_pert_dir, args.flowdir, args.pose_dir,
+                                  device=args.device)
+        traj_adv_rms_list, traj_adv_mean_partial_rms_list, \
+        traj_adv_target_rms_list, traj_adv_target_mean_partial_rms_list = tuple(traj_adv_criterions_list)
 
-    report_adv_deviation(dataset_idx_list, dataset_name_list, traj_name_list, traj_indices,
-                         traj_clean_target_mean_partial_rms_list, traj_adv_target_mean_partial_rms_list,
-                         args.save_csv, args.output_dir, crit_str="target_mean_partial_rms")
+        report_adv_deviation(test_dataset_idx_list, test_dataset_name_list, test_traj_name_list, test_traj_indices,
+                             traj_clean_target_mean_partial_rms_list, traj_adv_target_mean_partial_rms_list,
+                             args.save_csv, args.output_dir, crit_str="target_mean_partial_rms")
 
-    report_adv_deviation(dataset_idx_list, dataset_name_list, traj_name_list, traj_indices,
-                         traj_clean_target_rms_list, traj_adv_target_rms_list,
-                         args.save_csv, args.output_dir, crit_str="target_rms")
+        report_adv_deviation(test_dataset_idx_list, test_dataset_name_list, test_traj_name_list, test_traj_indices,
+                             traj_clean_target_rms_list, traj_adv_target_rms_list,
+                             args.save_csv, args.output_dir, crit_str="target_rms")
 
-    report_adv_deviation(dataset_idx_list, dataset_name_list, traj_name_list, traj_indices,
-                         traj_clean_mean_partial_rms_list, traj_adv_mean_partial_rms_list,
-                         args.save_csv, args.output_dir, crit_str="mean_partial_rms")
+        report_adv_deviation(test_dataset_idx_list, test_dataset_name_list, test_traj_name_list, test_traj_indices,
+                             traj_clean_mean_partial_rms_list, traj_adv_mean_partial_rms_list,
+                             args.save_csv, args.output_dir, crit_str="mean_partial_rms")
 
-    report_adv_deviation(dataset_idx_list, dataset_name_list, traj_name_list, traj_indices,
-                         traj_clean_rms_list, traj_adv_rms_list,
-                         args.save_csv, args.output_dir, crit_str="rms")
+        report_adv_deviation(test_dataset_idx_list, test_dataset_name_list, test_traj_name_list, test_traj_indices,
+                             traj_clean_rms_list, traj_adv_rms_list,
+                             args.save_csv, args.output_dir, crit_str="rms")
 
 
 def test_clean(args):

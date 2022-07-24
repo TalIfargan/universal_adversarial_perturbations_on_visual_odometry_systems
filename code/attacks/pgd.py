@@ -139,8 +139,8 @@ class PGD(Attack):
         torch.cuda.empty_cache()
         return grad.to(device)
 
-    def perturb(self, data_loader, y_list, eps, mu, gamma,
-                                   targeted=False, device=None, eval_data_loader=None, eval_y_list=None):
+    def perturb(self, train_data_loader, y_list, eps, mu, gamma,
+                targeted=False, device=None, eval_data_loader=None, eval_y_list=None):
 
         a_abs = np.abs(eps / self.n_iter) if self.alpha is None else np.abs(self.alpha)
         multiplier = -1 if targeted else 1
@@ -154,11 +154,14 @@ class PGD(Attack):
         print("attack norm: " + str(self.norm))
         print("attack epsilon norm limitation: " + str(eps))
         print("attack step size: " + str(a_abs))
+        evaluate_on_train = False
+        if eval_data_loader is not None:
+            evaluate_on_train = True
 
-        data_shape, dtype, eval_data_loader, eval_y_list, clean_flow_list, \
+        data_shape, dtype, eval_data_loader, eval_y_list, clean_flow_list, clean_loss_list, train_clean_loss_sum, train_best_loss_sum, train_best_loss_list,\
         eval_clean_loss_list, traj_clean_loss_mean_list, clean_loss_sum, \
         best_pert, best_loss_list, best_loss_sum, all_loss, all_best_loss = \
-            self.compute_clean_baseline(data_loader, y_list, eval_data_loader, eval_y_list, device=device)
+            self.compute_clean_baseline(train_data_loader, y_list, eval_data_loader, eval_y_list, device=device)
 
         for rest in tqdm(range(self.n_restarts)):
             print("restarting attack optimization, restart number: " + str(rest))
@@ -187,15 +190,63 @@ class PGD(Attack):
                 # pert = self.gradient_ascent_step_momentum(pert, data_shape, data_loader, y_list, clean_flow_list,
                 #                         multiplier, a_abs, eps, mu, device=device)
 
-                pert = self.gradient_ascent_step_SINI(pert, data_shape, data_loader, y_list, clean_flow_list,
-                                                   multiplier, a_abs, eps, mu, gamma, device=device)
+                pert = self.gradient_ascent_step_SINI(pert, data_shape, train_data_loader, y_list, clean_flow_list,
+                                                      multiplier, a_abs, eps, mu, gamma, device=device)
 
                 step_runtime = time.time() - iter_start_time
                 print(" optimization epoch finished, epoch runtime: " + str(step_runtime))
 
-                print(" evaluating perturbation")
-                eval_start_time = time.time()
 
+                if evaluate_on_train:
+                    print("-----------------evaluating perturbation on train------------------------ ")
+                    train_start_time = time.time()
+
+                    with torch.no_grad():
+                        train_loss_tot, train_loss_list = self.attack_eval(pert, data_shape, train_data_loader, y_list,
+                                                                         device)
+                        if train_loss_tot > train_best_loss_sum:
+                            best_pert = pert.clone().detach()
+                            train_best_loss_list, = train_loss_list
+                            train_best_loss_sum = train_loss_tot
+                        all_loss.append(train_loss_list)
+                        all_best_loss.append(train_best_loss_list,)
+                        traj_loss_mean_list = np.mean(train_loss_list, axis=0)
+                        traj_best_loss_mean_list = np.mean(train_best_loss_list, axis=0)
+
+                        train_runtime = time.time() - train_start_time
+                        print(" evaluation finished, evaluation runtime: " + str(train_runtime))
+                        print(" current trajectories loss mean list:")
+                        print(" " + str(traj_loss_mean_list))
+                        print(" current trajectories best loss mean list:")
+                        print(" " + str(traj_best_loss_mean_list))
+                        print(" trajectories clean loss mean list:")
+                        print(" " + str(traj_clean_loss_mean_list))
+                        print(" current trajectories loss sum:")
+                        print(" " + str(train_loss_tot))
+                        print(" current trajectories best loss sum:")
+                        print(" " + str(train_best_loss_sum))
+                        print(" trajectories clean loss sum:")
+                        print(" " + str(train_clean_loss_sum))
+                        # with open('night_train.txt', 'a') as f:
+                        #     f.write(" evaluation finished, evaluation runtime: " + str(eval_runtime))
+                        #     f.write(" current trajectories loss mean list:")
+                        #     f.write(" " + str(traj_loss_mean_list))
+                        #     f.write(" current trajectories best loss mean list:")
+                        #     f.write(" " + str(traj_best_loss_mean_list))
+                        #     f.write(" trajectories clean loss mean list:")
+                        #     f.write(" " + str(traj_clean_loss_mean_list))
+                        #     f.write(" current trajectories loss sum:")
+                        #     f.write(" " + str(eval_loss_tot))
+                        #     f.write(" current trajectories best loss sum:")
+                        #     f.write(" " + str(best_loss_sum))
+                        #     f.write(" trajectories clean loss sum:")
+                        #     f.write(" " + str(clean_loss_sum))
+                        del train_loss_tot
+                        del train_loss_list
+                        torch.cuda.empty_cache()
+
+                print("-----------------evaluating perturbation on test------------------------ ")
+                eval_start_time = time.time()
                 with torch.no_grad():
                     eval_loss_tot, eval_loss_list = self.attack_eval(pert, data_shape, eval_data_loader, eval_y_list,
                                                                      device)
@@ -243,5 +294,5 @@ class PGD(Attack):
 
             opt_runtime = time.time() - opt_start_time
             print("optimization restart finished, optimization runtime: " + str(opt_runtime))
-        return best_pert.detach(), eval_clean_loss_list, all_loss, all_best_loss
+        return best_pert.detach(), eval_clean_loss_list, all_loss, all_best_loss, best_loss_sum
 

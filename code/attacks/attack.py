@@ -216,18 +216,19 @@ class Attack:
             eval_clean_output_list, eval_clean_loss_list, _, _ = \
                 self.test_clean_multi_input(eval_data_loader, eval_y_list, device)
             del eval_clean_output_list
-            del clean_loss_list
+            # del clean_loss_list
             torch.cuda.empty_cache()
-        return clean_flow_list, eval_clean_loss_list, eval_data_loader, eval_y_list, data_shape, dtype
+        return clean_flow_list, clean_loss_list, eval_clean_loss_list, eval_data_loader, eval_y_list, data_shape, dtype
 
     def compute_clean_baseline(self, data_loader, y_list, eval_data_loader, eval_y_list, device=None):
 
-        clean_flow_list, eval_clean_loss_list, eval_data_loader, eval_y_list, data_shape, dtype = \
+        clean_flow_list, clean_loss_list, eval_clean_loss_list, eval_data_loader, eval_y_list, data_shape, dtype = \
             self.compute_train_eval_clean_output(data_loader, y_list, eval_data_loader, eval_y_list, device=device)
 
         best_pert = torch.zeros(1, data_shape[1], data_shape[2], data_shape[3], device=device,
                                 dtype=dtype).to(device)
-
+        train_best_loss_list = [loss.detach().cpu().tolist() for loss in clean_loss_list]
+        train_best_loss_sum = np.sum([loss.sum().item() for loss in clean_loss_list])
         best_loss_list = [loss.detach().cpu().tolist() for loss in eval_clean_loss_list]
         best_loss_sum = np.sum([loss.sum().item() for loss in eval_clean_loss_list])
         all_loss = [best_loss_list]
@@ -237,8 +238,9 @@ class Attack:
         eval_clean_loss_list = best_loss_list
         traj_clean_loss_mean_list = np.mean(eval_clean_loss_list, axis=0)
         clean_loss_sum = best_loss_sum
+        train_clean_loss_sum = train_best_loss_sum
 
-        return data_shape, dtype, eval_data_loader, eval_y_list, clean_flow_list, \
+        return data_shape, dtype, eval_data_loader, eval_y_list, clean_flow_list, clean_loss_list, train_clean_loss_sum, train_best_loss_sum, train_best_loss_list,\
                eval_clean_loss_list, traj_clean_loss_mean_list, clean_loss_sum, \
                best_pert, best_loss_list, best_loss_sum, all_loss, all_best_loss
 

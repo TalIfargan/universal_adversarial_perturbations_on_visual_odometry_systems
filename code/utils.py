@@ -14,13 +14,13 @@ from os.path import isdir
 from loss import VOCriterion
 import numpy as np
 
-
 def parse_args():
     parser = argparse.ArgumentParser()
     # parser = argparse.ArgumentParser(description='HRL')
 
     # run params
     parser.add_argument('--seed', type=int, default=42, metavar='S', help='random seed (default: random)')
+    parser.add_argument('--kfold', type=int, default=0, help='perform k-fold cross validation with kfold folds (default: 0)')
     parser.add_argument('--gpus', default='0', help='List of GPUs used for training - e.g 0,1,3')
     parser.add_argument('--force_cpu', action='store_true', help='Force pytorch to run in CPU mode.')
     parser.add_argument('--save-flow', action='store_true', default=False,
@@ -150,7 +150,10 @@ def compute_data_args(args):
                                      centerx=args.centerx, centery=args.centery, max_traj_len=args.max_traj_len,
                                      max_dataset_traj_num=args.max_traj_num,
                                      max_traj_datasets=args.max_traj_datasets)
-
+    train_num_samples = int(0.8 * len(args.testDataset))
+    args.trainDataset, args.testDataset = torch.utils.data.random_split(args.testDataset, [train_num_samples, len(args.testDataset)-train_num_samples], generator=torch.Generator().manual_seed(42))
+    args.trainDataloader = DataLoader(args.trainDataset, batch_size=args.batch_size,
+                                     shuffle=False, num_workers=args.worker_num)
     args.testDataloader = DataLoader(args.testDataset, batch_size=args.batch_size,
                                         shuffle=False, num_workers=args.worker_num)
     args.traj_len = args.testDataset.traj_len

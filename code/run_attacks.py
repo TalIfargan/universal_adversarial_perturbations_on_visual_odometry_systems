@@ -625,7 +625,7 @@ def run_attacks_train(args):
     if args.kfold > 0:
         kfold = KFold(n_splits=args.kfold, shuffle=True)
         sum_of_best_losses = 0
-        for fold, (train_idx, test_idx) in enumerate(kfold.split(args.testDataset)):
+        for fold, (train_idx, test_idx) in enumerate(kfold.split(args.trainDataset)):
             print('------------fold no---------{}----------------------'.format(fold))
             train_subsampler = torch.utils.data.SubsetRandomSampler(train_idx)
             test_subsampler = torch.utils.data.SubsetRandomSampler(test_idx)

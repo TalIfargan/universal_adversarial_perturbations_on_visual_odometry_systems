@@ -624,8 +624,9 @@ def run_attacks_train(args):
     attack = args.attack_obj
     if args.kfold > 0:
         kfold = KFold(n_splits=args.kfold, shuffle=True)
+        sum_of_clean_losses = 0
         sum_of_best_losses = 0
-        for fold, (train_idx, test_idx) in enumerate(kfold.split(args.trainDataset)):
+        for fold, (train_idx, test_idx) in enumerate(kfold.split(args.testDataset)):
             print('------------fold no---------{}----------------------'.format(fold))
             train_subsampler = torch.utils.data.SubsetRandomSampler(train_idx)
             test_subsampler = torch.utils.data.SubsetRandomSampler(test_idx)
@@ -651,20 +652,21 @@ def run_attacks_train(args):
             train_motions_target_list = train_motions_gt_list
             eval_motions_target_list = eval_motions_gt_list
 
-            best_pert, clean_loss_list, all_loss_list, all_best_loss_list, best_loss_sum = \
+            best_pert, clean_loss_list, all_loss_list, all_best_loss_list, clean_loss_sum, best_loss_sum = \
                 attack.perturb(train_data_loader=trainloader, eval_data_loader=testloader, y_list=train_motions_target_list, eval_y_list=eval_motions_target_list, eps=args.eps, mu=args.mu, gamma=args.gamma,
                                device=args.device)
+            sum_of_clean_losses += clean_loss_sum
             sum_of_best_losses += best_loss_sum
 
             if args.save_best_pert:
                 print('image not saved because in kfold mode')
-
+        mean_clean_loss = sum_of_clean_losses/args.kfold
         mean_best_loss = sum_of_best_losses/args.kfold
         print(mean_best_loss)
         fle = Path('kfold parameters evaluation.txt')
         fle.touch(exist_ok=True)
         with open('kfold parameters evaluation.txt', 'a') as f:
-            f.write(f'parameters: mu={args.mu}, alpha={args.alpha}, gamma={args.gamma}, eps={args.eps}\nmean_best_loss={mean_best_loss}\n')
+            f.write(f'parameters: mu={args.mu}, alpha={args.alpha}, gamma={args.gamma}, eps={args.eps}\nmean_clean_loss={mean_clean_loss}\nmean_best_loss={mean_best_loss}\n')
 
     else:
         train_dataset_idx_list, train_dataset_name_list, train_traj_name_list, train_traj_indices, \
@@ -681,7 +683,7 @@ def run_attacks_train(args):
         traj_clean_target_rms_list, traj_clean_target_mean_partial_rms_list = tuple(test_traj_clean_criterions_list)
 
 
-        best_pert, clean_loss_list, all_loss_list, all_best_loss_list, best_loss_sum = \
+        best_pert, clean_loss_list, all_loss_list, all_best_loss_list, clean_loss_sum, best_loss_sum = \
             attack.perturb(train_data_loader=args.trainDataloader, eval_data_loader=args.testDataloader, y_list=train_motions_target_list,
                            eval_y_list=test_motions_target_list, eps=args.eps, mu=args.mu, gamma=args.gamma,
                            device=args.device)

@@ -125,8 +125,7 @@ def rtvec_to_pose(rtvec):
 class MSELoss(torch.nn.Module):
     def __init__(self):
         super(MSELoss, self).__init__()
-        print("using mean MSE from the clean flow for regularization of flow in attacks")
-        self.MSELoss = torch.nn.MSELoss(reduction='mean')
+        self.MSELoss = torch.nn.MSELoss()
 
     def forward(self, x, y):
         x = x.flatten(start_dim=1)
@@ -187,7 +186,7 @@ class VOCriterion:
         else:
             self.calc_flow_crit = self.calc_none
 
-        self.calc_target_t_product = True
+        self.calc_target_t_product = False
 
     def apply(self, model_output, scale, motions_gt, target_pose, flow_clean=None):
         motions, flow = model_output
@@ -287,9 +286,9 @@ class VOCriterion:
             t_target_error = (cumul_delta_t.unsqueeze(1).bmm(target_gt_t_hat)).view(-1)
         return t_error, t_target_error
 
-    def rotation_quat_product(self, rot_quat, rot_quat_gt):
-        scalar_product = rot_quat.unsqueeze(1).bmm(rot_quat_gt.unsqueeze(2)).view(-1)
-        r_errors = 1 - scalar_product
+    def rotation_quat_product(self, traj_rot_quat, traj_rot_quat_gt):
+        dot_product = traj_rot_quat.unsqueeze(1).bmm(traj_rot_quat_gt.unsqueeze(2)).reshape(-1)
+        r_errors = 2*(1 - dot_product)
         return r_errors
 
     def rtvec_to_pose(self, rtvec):

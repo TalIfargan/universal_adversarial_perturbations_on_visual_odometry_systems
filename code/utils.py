@@ -151,11 +151,23 @@ def compute_data_args(args):
                                      max_dataset_traj_num=args.max_traj_num,
                                      max_traj_datasets=args.max_traj_datasets)
     train_num_samples = int(0.8 * len(args.testDataset))
-    args.trainDataset, args.testDataset = torch.utils.data.random_split(args.testDataset, [train_num_samples, len(args.testDataset)-train_num_samples], generator=torch.Generator().manual_seed(42))
-    args.trainDataloader = DataLoader(args.trainDataset, batch_size=args.batch_size,
-                                     shuffle=False, num_workers=args.worker_num)
-    args.testDataloader = DataLoader(args.testDataset, batch_size=args.batch_size,
-                                        shuffle=False, num_workers=args.worker_num)
+    train_idx = np.random.choice(len(args.testDataset), train_num_samples, False)
+    test_idx = list(set(np.arange(len(args.testDataset))) - set(train_idx))
+    train_subsampler = torch.utils.data.SubsetRandomSampler(train_idx)
+    test_subsampler = torch.utils.data.SubsetRandomSampler(test_idx)
+
+    args.trainDataloader = torch.utils.data.DataLoader(
+        args.testDataset,
+        batch_size=args.batch_size, sampler=train_subsampler, num_workers=args.worker_num)
+    args.testDataloader = torch.utils.data.DataLoader(
+        args.testDataset,
+        batch_size=args.batch_size, sampler=test_subsampler, num_workers=args.worker_num)
+    # train_num_samples = int(0.8 * len(args.testDataset))
+    # args.splitedtrainDataset, args.splitedtestDataset = torch.utils.data.random_split(args.testDataset, [train_num_samples, len(args.testDataset)-train_num_samples], generator=torch.Generator().manual_seed(42))
+    # args.trainDataloader = DataLoader(args.splitedtrainDataset.dataset, batch_size=args.batch_size,
+    #                                  shuffle=False, num_workers=args.worker_num)
+    # args.testDataloader = DataLoader(args.splitedtestDataset.dataset, batch_size=args.batch_size,
+    #                                     shuffle=False, num_workers=args.worker_num)
     args.traj_len = args.testDataset.traj_len
     args.traj_datasets = args.testDataset.datasets_num
 

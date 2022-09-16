@@ -154,9 +154,9 @@ class PGD(Attack):
         print("attack norm: " + str(self.norm))
         print("attack epsilon norm limitation: " + str(eps))
         print("attack step size: " + str(a_abs))
-        evaluate_on_train = False
+        evaluate_on_test = False
         if eval_data_loader is not None:
-            evaluate_on_train = True
+            evaluate_on_test = True
 
         data_shape, dtype, eval_data_loader, eval_y_list, clean_flow_list, clean_loss_list, train_clean_loss_sum, train_best_loss_sum, train_best_loss_list,\
         eval_clean_loss_list, traj_clean_loss_mean_list, clean_loss_sum, \
@@ -196,72 +196,23 @@ class PGD(Attack):
                 step_runtime = time.time() - iter_start_time
                 print(" optimization epoch finished, epoch runtime: " + str(step_runtime))
 
+                print("-----------------evaluating perturbation on train------------------------ ")
+                train_start_time = time.time()
 
-                if evaluate_on_train:
-                    print("-----------------evaluating perturbation on train------------------------ ")
-                    train_start_time = time.time()
-
-                    with torch.no_grad():
-                        train_loss_tot, train_loss_list = self.attack_eval(pert, data_shape, train_data_loader, y_list,
-                                                                         device)
-                        if train_loss_tot > train_best_loss_sum:
-                            best_pert = pert.clone().detach()
-                            train_best_loss_list, = train_loss_list
-                            train_best_loss_sum = train_loss_tot
-                        all_loss.append(train_loss_list)
-                        all_best_loss.append(train_best_loss_list,)
-                        traj_loss_mean_list = np.mean(train_loss_list, axis=0)
-                        traj_best_loss_mean_list = np.mean(train_best_loss_list, axis=0)
-
-                        train_runtime = time.time() - train_start_time
-                        print(" evaluation finished, evaluation runtime: " + str(train_runtime))
-                        print(" current trajectories loss mean list:")
-                        print(" " + str(traj_loss_mean_list))
-                        print(" current trajectories best loss mean list:")
-                        print(" " + str(traj_best_loss_mean_list))
-                        print(" trajectories clean loss mean list:")
-                        print(" " + str(traj_clean_loss_mean_list))
-                        print(" current trajectories loss sum:")
-                        print(" " + str(train_loss_tot))
-                        print(" current trajectories best loss sum:")
-                        print(" " + str(train_best_loss_sum))
-                        print(" trajectories clean loss sum:")
-                        print(" " + str(train_clean_loss_sum))
-                        # with open('night_train.txt', 'a') as f:
-                        #     f.write(" evaluation finished, evaluation runtime: " + str(eval_runtime))
-                        #     f.write(" current trajectories loss mean list:")
-                        #     f.write(" " + str(traj_loss_mean_list))
-                        #     f.write(" current trajectories best loss mean list:")
-                        #     f.write(" " + str(traj_best_loss_mean_list))
-                        #     f.write(" trajectories clean loss mean list:")
-                        #     f.write(" " + str(traj_clean_loss_mean_list))
-                        #     f.write(" current trajectories loss sum:")
-                        #     f.write(" " + str(eval_loss_tot))
-                        #     f.write(" current trajectories best loss sum:")
-                        #     f.write(" " + str(best_loss_sum))
-                        #     f.write(" trajectories clean loss sum:")
-                        #     f.write(" " + str(clean_loss_sum))
-                        del train_loss_tot
-                        del train_loss_list
-                        torch.cuda.empty_cache()
-
-                print("-----------------evaluating perturbation on test------------------------ ")
-                eval_start_time = time.time()
                 with torch.no_grad():
-                    eval_loss_tot, eval_loss_list = self.attack_eval(pert, data_shape, eval_data_loader, eval_y_list,
+                    train_loss_tot, train_loss_list = self.attack_eval(pert, data_shape, train_data_loader, y_list,
                                                                      device)
-
-                    if eval_loss_tot > best_loss_sum:
+                    if train_loss_tot > train_best_loss_sum:
                         best_pert = pert.clone().detach()
-                        best_loss_list = eval_loss_list
-                        best_loss_sum = eval_loss_tot
-                    all_loss.append(eval_loss_list)
-                    all_best_loss.append(best_loss_list)
-                    traj_loss_mean_list = np.mean(eval_loss_list, axis=0)
-                    traj_best_loss_mean_list = np.mean(best_loss_list, axis=0)
+                        train_best_loss_list = train_loss_list
+                        train_best_loss_sum = train_loss_tot
+                    all_loss.append(train_loss_list)
+                    all_best_loss.append(train_best_loss_list,)
+                    traj_loss_mean_list = np.mean(train_loss_list, axis=0)
+                    traj_best_loss_mean_list = np.mean(train_best_loss_list, axis=0)
 
-                    eval_runtime = time.time() - eval_start_time
-                    print(" evaluation finished, evaluation runtime: " + str(eval_runtime))
+                    train_runtime = time.time() - train_start_time
+                    print(" evaluation finished, evaluation runtime: " + str(train_runtime))
                     print(" current trajectories loss mean list:")
                     print(" " + str(traj_loss_mean_list))
                     print(" current trajectories best loss mean list:")
@@ -269,11 +220,11 @@ class PGD(Attack):
                     print(" trajectories clean loss mean list:")
                     print(" " + str(traj_clean_loss_mean_list))
                     print(" current trajectories loss sum:")
-                    print(" " + str(eval_loss_tot))
+                    print(" " + str(train_loss_tot))
                     print(" current trajectories best loss sum:")
-                    print(" " + str(best_loss_sum))
+                    print(" " + str(train_best_loss_sum))
                     print(" trajectories clean loss sum:")
-                    print(" " + str(clean_loss_sum))
+                    print(" " + str(train_clean_loss_sum))
                     # with open('night_train.txt', 'a') as f:
                     #     f.write(" evaluation finished, evaluation runtime: " + str(eval_runtime))
                     #     f.write(" current trajectories loss mean list:")
@@ -288,11 +239,59 @@ class PGD(Attack):
                     #     f.write(" " + str(best_loss_sum))
                     #     f.write(" trajectories clean loss sum:")
                     #     f.write(" " + str(clean_loss_sum))
-                    del eval_loss_tot
-                    del eval_loss_list
+                    del train_loss_tot
+                    del train_loss_list
                     torch.cuda.empty_cache()
+
+                if evaluate_on_test:
+                    print("-----------------evaluating perturbation on test------------------------ ")
+                    eval_start_time = time.time()
+                    with torch.no_grad():
+                        eval_loss_tot, eval_loss_list = self.attack_eval(pert, data_shape, eval_data_loader, eval_y_list,
+                                                                         device)
+
+                        if eval_loss_tot > best_loss_sum:
+                            best_pert = pert.clone().detach()
+                            best_loss_list = eval_loss_list
+                            best_loss_sum = eval_loss_tot
+                        all_loss.append(eval_loss_list)
+                        all_best_loss.append(best_loss_list)
+                        traj_loss_mean_list = np.mean(eval_loss_list, axis=0)
+                        traj_best_loss_mean_list = np.mean(best_loss_list, axis=0)
+
+                        eval_runtime = time.time() - eval_start_time
+                        print(" evaluation finished, evaluation runtime: " + str(eval_runtime))
+                        print(" current trajectories loss mean list:")
+                        print(" " + str(traj_loss_mean_list))
+                        print(" current trajectories best loss mean list:")
+                        print(" " + str(traj_best_loss_mean_list))
+                        print(" trajectories clean loss mean list:")
+                        print(" " + str(traj_clean_loss_mean_list))
+                        print(" current trajectories loss sum:")
+                        print(" " + str(eval_loss_tot))
+                        print(" current trajectories best loss sum:")
+                        print(" " + str(best_loss_sum))
+                        print(" trajectories clean loss sum:")
+                        print(" " + str(clean_loss_sum))
+                        # with open('night_train.txt', 'a') as f:
+                        #     f.write(" evaluation finished, evaluation runtime: " + str(eval_runtime))
+                        #     f.write(" current trajectories loss mean list:")
+                        #     f.write(" " + str(traj_loss_mean_list))
+                        #     f.write(" current trajectories best loss mean list:")
+                        #     f.write(" " + str(traj_best_loss_mean_list))
+                        #     f.write(" trajectories clean loss mean list:")
+                        #     f.write(" " + str(traj_clean_loss_mean_list))
+                        #     f.write(" current trajectories loss sum:")
+                        #     f.write(" " + str(eval_loss_tot))
+                        #     f.write(" current trajectories best loss sum:")
+                        #     f.write(" " + str(best_loss_sum))
+                        #     f.write(" trajectories clean loss sum:")
+                        #     f.write(" " + str(clean_loss_sum))
+                        del eval_loss_tot
+                        del eval_loss_list
+                        torch.cuda.empty_cache()
 
             opt_runtime = time.time() - opt_start_time
             print("optimization restart finished, optimization runtime: " + str(opt_runtime))
-        return best_pert.detach(), eval_clean_loss_list, all_loss, all_best_loss, best_loss_sum
+        return best_pert.detach(), eval_clean_loss_list, all_loss, all_best_loss, clean_loss_sum, best_loss_sum
 
